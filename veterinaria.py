@@ -33,7 +33,12 @@ class Veterinaria:
 
     def registrar_cliente(self):
         print("\n--- REGISTRAR CLIENTE ---")
-        dni = input("DNI: ").strip()
+        while True:
+            dni = input("DNI: ").strip()
+            if dni.isdigit():
+                break
+            print("El DNI debe contener solo números.")
+
         if dni in self.clientes:
             print("El cliente ya se encuentra registrado.")
             return self.clientes[dni]
@@ -68,7 +73,12 @@ class Veterinaria:
 
     def buscar_cliente_menu(self):
         print("\n--- BUSCAR CLIENTE ---")
-        dni = input("Ingrese DNI: ").strip()
+        while True:
+            dni = input("Ingrese DNI: ").strip()
+            if dni.isdigit():
+                break
+            print("El DNI debe contener solo números.")
+
         cliente = self.buscar_cliente(dni)
         if cliente is None:
             print("Cliente no encontrado.")
@@ -195,7 +205,47 @@ class Veterinaria:
     # LISTADO DE CITAS
     # ===============================
 
-    def listar_citas(self):
+    def ordenar_citas_quicksort(self, citas):
+        if len(citas) <= 1:
+            return citas
+
+        pivote = citas[len(citas) // 2]
+        menores = [
+            cita for cita in citas
+            if cita.id < pivote.id
+        ]
+        iguales = [
+            cita for cita in citas
+            if cita.id == pivote.id
+        ]
+        mayores = [
+            cita for cita in citas
+            if cita.id > pivote.id
+        ]
+
+        return (
+            self.ordenar_citas_quicksort(menores)
+            + iguales
+            + self.ordenar_citas_quicksort(mayores)
+        )
+
+    def ordenar_citas_burbuja(self, citas):
+        citas_ordenadas = citas.copy()
+
+        for limite in range(len(citas_ordenadas) - 1, 0, -1):
+            for indice in range(limite):
+                if (
+                    citas_ordenadas[indice].id
+                    > citas_ordenadas[indice + 1].id
+                ):
+                    citas_ordenadas[indice], citas_ordenadas[indice + 1] = (
+                        citas_ordenadas[indice + 1],
+                        citas_ordenadas[indice]
+                    )
+
+        return citas_ordenadas
+
+    def listar_citas(self, pedir_orden=True):
 
         print("\n--- TODAS LAS CITAS ---")
 
@@ -203,7 +253,26 @@ class Veterinaria:
             print("No existen citas registradas.")
             return
 
-        for cita in self.citas:
+        citas_ordenadas = self.citas
+        if pedir_orden:
+            print("\n¿Cómo desea ordenar las citas?")
+            print("1. Quicksort")
+            print("2. Burbuja")
+            opcion = input("Seleccione una opción: ").strip()
+
+            if opcion == "1":
+                citas_ordenadas = self.ordenar_citas_quicksort(
+                    self.citas
+                )
+            elif opcion == "2":
+                citas_ordenadas = self.ordenar_citas_burbuja(
+                    self.citas
+                )
+            else:
+                print("Opción no válida.")
+                return
+
+        for cita in citas_ordenadas:
             print(cita)
             print("------------------------")
 
@@ -245,7 +314,7 @@ class Veterinaria:
         if len(self.citas) == 0:
             print("\nNo existen citas registradas.")
             return
-        self.listar_citas()
+        self.listar_citas(pedir_orden=False)
         try:
             id_cita = int(
                 input("\nIngrese el ID de la cita: ")
