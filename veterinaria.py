@@ -1,4 +1,6 @@
 from models import Cliente, Mascota, Veterinario, Cita
+from colores import celeste, rojo, verde
+from datetime import datetime
 
 class Veterinaria:
     def __init__(self):
@@ -12,16 +14,38 @@ class Veterinaria:
 
     def cargar_veterinarios(self):
         self.veterinarios.append(
-            Veterinario("Carlos Pérez")
+            Veterinario("Carlos Pérez", maximo_citas_diarias=4)
         )
         self.veterinarios.append(
-            Veterinario("María Rodríguez")
+            Veterinario("María Rodríguez", maximo_citas_diarias=4)
         )
 
-    def listar_veterinarios(self):
-        print("\n--- VETERINARIOS ---")
-        for veterinario in self.veterinarios:
-            print(veterinario)
+    def listar_veterinarios(self, fecha=None):
+        if fecha is None:
+            print(celeste("\n--- VETERINARIOS ---"))
+            veterinarios = self.veterinarios
+        else:
+            dia = self.obtener_dia(fecha)
+            print(celeste(f"\n--- VETERINARIOS DISPONIBLES EL {dia} ---"))
+            veterinarios = [
+                veterinario for veterinario in self.veterinarios
+                if self.veterinario_disponible(veterinario, fecha)
+            ]
+
+        if len(veterinarios) == 0:
+            print(rojo("No hay veterinarios disponibles para ese día."))
+            return []
+
+        for veterinario in veterinarios:
+            if fecha is None:
+                print(verde(veterinario))
+            else:
+                cantidad = self.contar_citas_por_dia(veterinario, fecha)
+                disponibles = veterinario.maximo_citas_diarias - cantidad
+                print(verde(
+                    f"{veterinario} | Cupos disponibles: {disponibles}"
+                ))
+        return veterinarios
 
     def buscar_veterinario_por_id(self, id_veterinario):
         for veterinario in self.veterinarios:
@@ -29,66 +53,90 @@ class Veterinaria:
                 return veterinario
         return None
 
+    def obtener_dia(self, fecha):
+        return fecha.split()[0]
+
+    def contar_citas_por_dia(self, veterinario, fecha):
+        dia = self.obtener_dia(fecha)
+        return sum(
+            1 for cita in self.citas
+            if cita.veterinario.id == veterinario.id
+            and self.obtener_dia(cita.fecha) == dia
+        )
+
+    def veterinario_disponible(self, veterinario, fecha):
+        cantidad = self.contar_citas_por_dia(veterinario, fecha)
+        return cantidad < veterinario.maximo_citas_diarias
+
     # CLIENTES
 
     def registrar_cliente(self):
-        print("\n--- REGISTRAR CLIENTE ---")
+        print(celeste("\n--- REGISTRAR CLIENTE ---"))
         while True:
             dni = input("DNI: ").strip()
             if dni.isdigit():
                 break
-            print("El DNI debe contener solo números.")
+            print(rojo("El DNI debe contener solo números."))
 
         if dni in self.clientes:
-            print("El cliente ya se encuentra registrado.")
+            print(rojo("El cliente ya se encuentra registrado."))
             return self.clientes[dni]
 
         nombre = input("Nombre: ").strip()
-        telefono = input("Teléfono: ").strip()
+        while True:
+            telefono = input("Celular: ").strip()
+            if telefono.isdigit():
+                break
+            print(rojo("El celular debe contener solo números."))
+
         cliente = Cliente(
             dni=dni,
             nombre=nombre,
             telefono=telefono
         )
         self.clientes[dni] = cliente
-        print("\nCliente registrado correctamente.")
-        print(cliente)
+        print(verde("\nCliente registrado correctamente."))
+        print(verde(cliente))
         return cliente
 
     def buscar_cliente(self, dni):
         return self.clientes.get(dni)
 
-    def mostrar_cliente(self, cliente):
+    def mostrar_cliente(self, cliente, mostrar_mascotas=True):
         if cliente is None:
-            print("Cliente no encontrado.")
+            print(rojo("Cliente no encontrado."))
             return
-        print("\n--- DATOS DEL CLIENTE ---")
-        print(cliente)
-        print("\n--- MASCOTAS ---")
+        print(celeste("\n--- DATOS DEL CLIENTE ---"))
+        print(verde(cliente))
+
+        if not mostrar_mascotas:
+            return
+
+        print(celeste("\n--- MASCOTAS ---"))
         if len(cliente.mascotas) == 0:
-            print("El cliente no tiene mascotas registradas.")
+            print(rojo("El cliente no tiene mascotas registradas."))
             return
         for mascota in cliente.mascotas:
-            print(mascota)
+            print(verde(mascota))
 
     def buscar_cliente_menu(self):
-        print("\n--- BUSCAR CLIENTE ---")
+        print(celeste("\n--- BUSCAR CLIENTE ---"))
         while True:
             dni = input("Ingrese DNI: ").strip()
             if dni.isdigit():
                 break
-            print("El DNI debe contener solo números.")
+            print(rojo("El DNI debe contener solo números."))
 
         cliente = self.buscar_cliente(dni)
         if cliente is None:
-            print("Cliente no encontrado.")
+            print(rojo("Cliente no encontrado."))
             return
         self.mostrar_cliente(cliente)
 
     # MASCOTAS
 
     def registrar_mascota(self, cliente):
-        print("\n--- REGISTRAR MASCOTA ---")
+        print(celeste("\n--- REGISTRAR MASCOTA ---"))
         nombre = input("Nombre de la mascota: ").strip()
         especie = input("Especie (Perro, Gato, etc.): ").strip()
         raza = input("Raza: ").strip()
@@ -100,20 +148,20 @@ class Veterinaria:
             edad=edad
         )
         cliente.agregar_mascota(mascota)
-        print("\nMascota registrada correctamente.")
-        print(mascota)
+        print(verde("\nMascota registrada correctamente."))
+        print(verde(mascota))
         return mascota
 
     def seleccionar_mascota(self, cliente):
         if len(cliente.mascotas) == 0:
-            print("\nEl cliente no tiene mascotas registradas.")
-            print("Se registrará una nueva mascota.")
+            print(rojo("\nEl cliente no tiene mascotas registradas."))
+            print(celeste("Se registrará una nueva mascota."))
             return self.registrar_mascota(cliente)
 
-        print("\n--- MASCOTAS DEL CLIENTE ---")
+        print(celeste("\n--- MASCOTAS DEL CLIENTE ---"))
 
         for mascota in cliente.mascotas:
-            print(mascota)
+            print(verde(mascota))
 
         print("0 - Registrar nueva mascota")
         try:
@@ -121,7 +169,7 @@ class Veterinaria:
                 input("\nSeleccione mascota: ")
             )
         except ValueError:
-            print("Debe ingresar un número.")
+            print(rojo("Debe ingresar un número."))
             return None
 
         if id_mascota == 0:
@@ -131,22 +179,22 @@ class Veterinaria:
             if mascota.id == id_mascota:
                 return mascota
 
-        print("Mascota no encontrada.")
+        print(rojo("Mascota no encontrada."))
         return None
 
     # CITAS
 
     def registrar_cita(self):
 
-        print("\n==============================")
-        print("       REGISTRAR CITA")
-        print("==============================")
+        print(celeste("\n=============================="))
+        print(celeste("       REGISTRAR CITA"))
+        print(celeste("=============================="))
         dni = input("Ingrese DNI del cliente: ").strip()
         cliente = self.buscar_cliente(dni)
 
         # Si cliente no existe
         if cliente is None:
-            print("\nCliente no encontrado.")
+            print(rojo("\nCliente no encontrado."))
             opcion = input(
                 "¿Desea registrar al cliente? (s/n): "
             ).lower()
@@ -156,8 +204,8 @@ class Veterinaria:
             else:
                 return
 
-        # Mostrar cliente
-        self.mostrar_cliente(cliente)
+        # Mostrar el cliente sin repetir la lista de mascotas.
+        self.mostrar_cliente(cliente, mostrar_mascotas=False)
 
         # Seleccionar mascota
         mascota = self.seleccionar_mascota(cliente)
@@ -165,28 +213,42 @@ class Veterinaria:
         if mascota is None:
             return
 
-        # Seleccionar veterinario
-        self.listar_veterinarios()
+        # La fecha permite mostrar únicamente veterinarios disponibles.
+        while True:
+            fecha = input(
+                "Ingrese fecha de la cita (DD/MM/YYYY HH:MM): "
+            ).strip()
+            try:
+                datetime.strptime(fecha, "%d/%m/%Y %H:%M")
+                break
+            except ValueError:
+                print(
+                    rojo("Fecha y hora inválidas. "
+                    "Use el formato DD/MM/YYYY HH:MM.")
+                )
+
+        veterinarios_disponibles = self.listar_veterinarios(fecha)
+        if len(veterinarios_disponibles) == 0:
+            return
+
         try:
             id_veterinario = int(
                 input("\nSeleccione veterinario: ")
             )
         except ValueError:
-            print("Debe ingresar un número.")
+            print(rojo("Debe ingresar un número."))
             return
 
         veterinario = self.buscar_veterinario_por_id(
             id_veterinario
         )
 
-        if veterinario is None:
-            print("Veterinario no encontrado.")
+        if (
+            veterinario is None
+            or veterinario not in veterinarios_disponibles
+        ):
+            print(rojo("Veterinario no disponible para ese día."))
             return
-
-        # Fecha
-        fecha = input(
-            "Ingrese fecha de la cita (DD/MM/YYYY HH:MM): "
-        ).strip()
 
         cita = Cita(
             cliente=cliente,
@@ -197,8 +259,31 @@ class Veterinaria:
 
         self.citas.append(cita)
 
-        print("\nCita registrada correctamente.")
-        print(cita)
+        print(verde("\nCita registrada correctamente."))
+        print(verde(cita))
+
+    def listar_cantidad_citas_por_dia(self):
+        print(celeste("\n--- CANTIDAD DE CITAS POR DOCTOR Y DÍA ---"))
+
+        if len(self.citas) == 0:
+            print(rojo("No existen citas registradas."))
+            return
+
+        dias = sorted(
+            {self.obtener_dia(cita.fecha) for cita in self.citas},
+            key=lambda dia: datetime.strptime(dia, "%d/%m/%Y")
+        )
+
+        for dia in dias:
+            print(celeste(f"\nFecha: {dia}"))
+            for veterinario in self.veterinarios:
+                cantidad = self.contar_citas_por_dia(veterinario, dia)
+                disponibles = veterinario.maximo_citas_diarias - cantidad
+                print(verde(
+                    f"Dr(a). {veterinario.nombre}: "
+                    f"{cantidad}/{veterinario.maximo_citas_diarias} citas | "
+                    f"Cupos disponibles: {disponibles}"
+                ))
 
 
     # ===============================
@@ -247,15 +332,15 @@ class Veterinaria:
 
     def listar_citas(self, pedir_orden=True):
 
-        print("\n--- TODAS LAS CITAS ---")
+        print(celeste("\n--- TODAS LAS CITAS ---"))
 
         if len(self.citas) == 0:
-            print("No existen citas registradas.")
+            print(rojo("No existen citas registradas."))
             return
 
         citas_ordenadas = self.citas
         if pedir_orden:
-            print("\n¿Cómo desea ordenar las citas?")
+            print(celeste("\n¿Cómo desea ordenar las citas?"))
             print("1. Quicksort")
             print("2. Burbuja")
             opcion = input("Seleccione una opción: ").strip()
@@ -269,12 +354,12 @@ class Veterinaria:
                     self.citas
                 )
             else:
-                print("Opción no válida.")
+                print(rojo("Opción no válida."))
                 return
 
         for cita in citas_ordenadas:
-            print(cita)
-            print("------------------------")
+            print(verde(cita))
+            print(verde("------------------------"))
 
 
     def buscar_citas_por_veterinario(self):
@@ -284,35 +369,35 @@ class Veterinaria:
                 input("\nIngrese ID del veterinario: ")
             )
         except ValueError:
-            print("Debe ingresar un número.")
+            print(rojo("Debe ingresar un número."))
             return
         veterinario = self.buscar_veterinario_por_id(
             id_veterinario
         )
         if veterinario is None:
-            print("Veterinario no encontrado.")
+            print(rojo("Veterinario no encontrado."))
             return
         citas_encontradas = []
         for cita in self.citas:
             if cita.veterinario.id == id_veterinario:
                 citas_encontradas.append(cita)
-        print(
+        print(celeste(
             f"\n--- CITAS DE DR(A). {veterinario.nombre} ---"
-        )
+        ))
 
         if len(citas_encontradas) == 0:
-            print("El veterinario no tiene citas.")
+            print(rojo("El veterinario no tiene citas."))
             return
 
         for cita in citas_encontradas:
-            print(cita)
-            print("------------------------")
+            print(verde(cita))
+            print(verde("------------------------"))
 
     # ANOTACIONES
 
     def agregar_anotacion_cita(self):
         if len(self.citas) == 0:
-            print("\nNo existen citas registradas.")
+            print(rojo("\nNo existen citas registradas."))
             return
         self.listar_citas(pedir_orden=False)
         try:
@@ -320,7 +405,7 @@ class Veterinaria:
                 input("\nIngrese el ID de la cita: ")
             )
         except ValueError:
-            print("Debe ingresar un número.")
+            print(rojo("Debe ingresar un número."))
             return
         cita_encontrada = None
         for cita in self.citas:
@@ -330,11 +415,11 @@ class Veterinaria:
                 break
 
         if cita_encontrada is None:
-            print("Cita no encontrada.")
+            print(rojo("Cita no encontrada."))
             return
 
-        print("\nCita seleccionada:")
-        print(cita_encontrada)
+        print(celeste("\nCita seleccionada:"))
+        print(verde(cita_encontrada))
 
         anotacion = input(
             "\nIngrese la anotación del veterinario: "
@@ -343,4 +428,4 @@ class Veterinaria:
         cita_encontrada.agregar_anotacion(
             anotacion
         )
-        print("\nAnotación registrada correctamente.")
+        print(verde("\nAnotación registrada correctamente."))

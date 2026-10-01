@@ -39,14 +39,18 @@ class Mascota:
 class Veterinario:
     contador_id = 1
 
-    def __init__(self, nombre):
+    def __init__(self, nombre, maximo_citas_diarias=4):
         self.id = Veterinario.contador_id
         Veterinario.contador_id += 1
 
         self.nombre = nombre
+        self.maximo_citas_diarias = maximo_citas_diarias
 
     def __str__(self):
-        return f"{self.id} - Dr(a). {self.nombre}"
+        return (
+            f"{self.id} - Dr(a). {self.nombre} | "
+            f"Máximo diario: {self.maximo_citas_diarias} citas"
+        )
 
 
 class Cita:
@@ -76,4 +80,3 @@ class Cita:
             f"Veterinario: Dr(a). {self.veterinario.nombre}\n"
             f"Anotaciones: {anotacion}"
         )
-    
