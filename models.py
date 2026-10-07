@@ -1,3 +1,6 @@
+from datetime import datetime, timedelta
+
+
 class Cliente:
     contador_id = 1
 
@@ -63,18 +66,40 @@ class Cita:
         self.cliente = cliente
         self.mascota = mascota
         self.veterinario = veterinario
-        self.fecha = fecha
+        self.fecha = datetime.strptime(fecha, "%d/%m/%Y %H:%M").strftime("%d/%m/%Y %H:%M")
+        self.estado = "pendiente"
+        self.cita_anterior_id = None
+        self.cita_siguiente_id = None
         self.anotaciones = ""
 
+    @property
+    def inicio(self):
+        return datetime.strptime(self.fecha, "%d/%m/%Y %H:%M")
+
+    @property
+    def fin(self):
+        return self.inicio + timedelta(minutes=30)
+
+    def marcar_atendida(self):
+        if self.estado != "pendiente":
+            raise ValueError("Solo se puede atender una cita pendiente.")
+        self.estado = "atendida"
+
     def agregar_anotacion(self, anotacion):
-        self.anotaciones = anotacion
+        anotacion = anotacion.strip()
+        if not anotacion:
+            raise ValueError("La anotación no puede estar vacía.")
+        self.anotaciones += ("\n" if self.anotaciones else "") + anotacion
 
     def __str__(self):
         anotacion = self.anotaciones if self.anotaciones else "Sin anotaciones"
 
         return (
             f"\nCita #{self.id}\n"
-            f"Fecha: {self.fecha}\n"
+            f"Fecha: {self.fecha} | Fin: {self.fin:%d/%m/%Y %H:%M} (30 minutos)\n"
+            f"Estado: {self.estado}\n"
+            f"Cita anterior: {self.cita_anterior_id or '-'} | "
+            f"Cita nueva: {self.cita_siguiente_id or '-'}\n"
             f"Cliente: {self.cliente.nombre} - DNI: {self.cliente.dni}\n"
             f"Mascota: {self.mascota.nombre} ({self.mascota.especie})\n"
             f"Veterinario: Dr(a). {self.veterinario.nombre}\n"

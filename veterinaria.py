@@ -1,6 +1,7 @@
 from models import Cliente, Mascota, Veterinario, Cita
 from colores import celeste, rojo, verde
-from datetime import datetime
+from datetime import datetime, timedelta
+from time import perf_counter
 
 class Veterinaria:
     def __init__(self):
@@ -62,6 +63,7 @@ class Veterinaria:
             1 for cita in self.citas
             if cita.veterinario.id == veterinario.id
             and self.obtener_dia(cita.fecha) == dia
+            and cita.estado != "reprogramada"
         )
 
     def veterinario_disponible(self, veterinario, fecha):
@@ -213,19 +215,7 @@ class Veterinaria:
         if mascota is None:
             return
 
-        # La fecha permite mostrar únicamente veterinarios disponibles.
-        while True:
-            fecha = input(
-                "Ingrese fecha de la cita (DD/MM/YYYY HH:MM): "
-            ).strip()
-            try:
-                datetime.strptime(fecha, "%d/%m/%Y %H:%M")
-                break
-            except ValueError:
-                print(
-                    rojo("Fecha y hora inválidas. "
-                    "Use el formato DD/MM/YYYY HH:MM.")
-                )
+        fecha = self.pedir_dia()
 
         veterinarios_disponibles = self.listar_veterinarios(fecha)
         if len(veterinarios_disponibles) == 0:
@@ -250,14 +240,14 @@ class Veterinaria:
             print(rojo("Veterinario no disponible para ese día."))
             return
 
-        cita = Cita(
-            cliente=cliente,
-            mascota=mascota,
-            veterinario=veterinario,
-            fecha=fecha
-        )
-
-        self.citas.append(cita)
+        horario = self.pedir_horario(veterinario, fecha)
+        if horario is None:
+            return
+        try:
+            cita = self.crear_cita(cliente, mascota, veterinario, horario)
+        except ValueError as error:
+            print(rojo(str(error)))
+            return
 
         print(verde("\nCita registrada correctamente."))
         print(verde(cita))
@@ -345,17 +335,18 @@ class Veterinaria:
             print("2. Burbuja")
             opcion = input("Seleccione una opción: ").strip()
 
-            if opcion == "1":
-                citas_ordenadas = self.ordenar_citas_quicksort(
-                    self.citas
-                )
-            elif opcion == "2":
-                citas_ordenadas = self.ordenar_citas_burbuja(
-                    self.citas
-                )
-            else:
+            algoritmos = {
+                "1": ("Quicksort", self.ordenar_citas_quicksort),
+                "2": ("Burbuja", self.ordenar_citas_burbuja),
+            }
+            if opcion not in algoritmos:
                 print(rojo("Opción no válida."))
                 return
+            nombre, ordenar = algoritmos[opcion]
+            inicio = perf_counter()
+            citas_ordenadas = ordenar(self.citas)
+            duracion = perf_counter() - inicio
+            print(celeste(f"Tiempo de ordenamiento ({nombre}): {duracion * 1000:.6f} ms"))
 
         for cita in citas_ordenadas:
             print(verde(cita))
@@ -425,7 +416,129 @@ class Veterinaria:
             "\nIngrese la anotación del veterinario: "
         ).strip()
 
-        cita_encontrada.agregar_anotacion(
-            anotacion
-        )
+        try:
+            cita_encontrada.agregar_anotacion(anotacion)
+        except ValueError as error:
+            print(rojo(str(error)))
+            return
         print(verde("\nAnotación registrada correctamente."))
+
+
+    def pedir_dia(self):
+        while True:
+            fecha = input("Ingrese fecha de la cita (DD/MM/YYYY): ").strip()
+            try:
+                return datetime.strptime(fecha, "%d/%m/%Y").strftime("%d/%m/%Y")
+            except ValueError:
+                print(rojo("Fecha inválida. Use DD/MM/YYYY."))
+
+    def siguiente_turno(self, veterinario, fecha):
+        dia = datetime.strptime(fecha, "%d/%m/%Y")
+        finales = [cita.fin for cita in self.citas
+                   if cita.veterinario.id == veterinario.id
+                   and cita.estado != "reprogramada"
+                   and cita.inicio.date() == dia.date()]
+        turno = max(finales) if finales else dia.replace(hour=9)
+        # También contempla citas del día anterior que crucen medianoche.
+        while any(cita.veterinario.id == veterinario.id
+                  and cita.estado != "reprogramada"
+                  and turno < cita.fin and cita.inicio < turno + timedelta(minutes=30)
+                  for cita in self.citas):
+            turno += timedelta(minutes=30)
+        return turno if turno.date() == dia.date() else None
+
+    def pedir_horario(self, veterinario, fecha):
+        turno = self.siguiente_turno(veterinario, fecha)
+        sugerencia = f"Próximo = {turno:%H:%M}" if turno else "sin turno sugerido"
+        while True:
+            hora = input(f"Hora (HH:MM; {sugerencia}; 0 = cancelar): ").strip()
+            if hora == "0":
+                return None
+            if not hora and turno:
+                return turno.strftime("%d/%m/%Y %H:%M")
+            try:
+                return datetime.strptime(f"{fecha} {hora}", "%d/%m/%Y %H:%M").strftime("%d/%m/%Y %H:%M")
+            except ValueError:
+                print(rojo("Hora inválida. Use HH:MM."))
+
+    def validar_horario(self, veterinario, fecha, excluir=None):
+        inicio = datetime.strptime(fecha, "%d/%m/%Y %H:%M")
+        fin = inicio + timedelta(minutes=30)
+        citas = [cita for cita in self.citas
+                 if cita is not excluir and cita.estado != "reprogramada"
+                 and cita.veterinario.id == veterinario.id]
+        if any(inicio < cita.fin and cita.inicio < fin for cita in citas):
+            raise ValueError("El doctor ya tiene una cita que se cruza con ese horario.")
+        if sum(cita.inicio.date() == inicio.date() for cita in citas) >= veterinario.maximo_citas_diarias:
+            raise ValueError("El doctor alcanzó su máximo de citas para ese día.")
+
+    def crear_cita(self, cliente, mascota, veterinario, fecha):
+        self.validar_horario(veterinario, fecha)
+        cita = Cita(cliente, mascota, veterinario, fecha)
+        self.citas.append(cita)
+        return cita
+
+    def reprogramar_cita(self, cita, fecha):
+        if cita.estado != "pendiente":
+            raise ValueError("Solo se puede reprogramar una cita pendiente.")
+        if datetime.strptime(fecha, "%d/%m/%Y %H:%M") == cita.inicio:
+            raise ValueError("Seleccione una fecha u hora diferente a la original.")
+        self.validar_horario(cita.veterinario, fecha, excluir=cita)
+        nueva = Cita(cita.cliente, cita.mascota, cita.veterinario, fecha)
+        nueva.cita_anterior_id = cita.id
+        self.citas.append(nueva)
+        cita.estado = "reprogramada"
+        cita.cita_siguiente_id = nueva.id
+        return nueva
+
+    def buscar_citas_por_cliente(self, dni):
+        return sorted((cita for cita in self.citas if cita.cliente.dni == dni),
+                      key=lambda cita: (cita.inicio, cita.id))
+
+    def gestionar_citas_cliente(self):
+        dni = input("Ingrese DNI del cliente: ").strip()
+        if self.buscar_cliente(dni) is None:
+            print(rojo("Cliente no encontrado."))
+            return
+        while True:
+            citas = self.buscar_citas_por_cliente(dni)
+            if not citas:
+                print(rojo("El cliente no tiene citas."))
+                return
+            pendientes = [cita for cita in citas if cita.estado == "pendiente"]
+            print(celeste("\n--- CITAS PENDIENTES ---"))
+            for cita in pendientes:
+                print(verde(cita))
+            if not pendientes:
+                print("Sin citas pendientes.")
+            print(celeste("\n--- HISTORIAL COMPLETO ---"))
+            for cita in citas:
+                print(verde(cita))
+            try:
+                id_cita = int(input("ID de cita para gestionar (0 = volver): "))
+                if id_cita == 0:
+                    return
+                cita = next((c for c in citas if c.id == id_cita), None)
+                if cita is None:
+                    print(rojo("Cita no encontrada para este cliente."))
+                    continue
+                print("1. Marcar atendida\n2. Agregar anotación\n3. Reprogramar\n0. Volver")
+                opcion = input("Seleccione una opción: ").strip()
+                if opcion == "1":
+                    cita.marcar_atendida()
+                    print(verde("Cita marcada como atendida."))
+                elif opcion == "2":
+                    cita.agregar_anotacion(input("Anotación: "))
+                    print(verde("Anotación agregada."))
+                elif opcion == "3":
+                    if cita.estado != "pendiente":
+                        raise ValueError("Solo se puede reprogramar una cita pendiente.")
+                    fecha = self.pedir_dia()
+                    horario = self.pedir_horario(cita.veterinario, fecha)
+                    if horario is not None:
+                        nueva = self.reprogramar_cita(cita, horario)
+                        print(verde(f"Cita #{cita.id} reprogramada. Nueva cita #{nueva.id}."))
+                elif opcion != "0":
+                    print(rojo("Opción no válida."))
+            except ValueError as error:
+                print(rojo(str(error)))

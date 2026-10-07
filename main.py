@@ -15,6 +15,7 @@ def mostrar_menu():
     print("7. Listar todas las citas")
     print("8. Agregar anotación a una cita")
     print("9. Listar cantidad de citas por doctor y día")
+    print("10. Buscar y gestionar citas por DNI / historial")
     print(rojo("0. Salir"))
     print(celeste("===================================="))
 
@@ -68,6 +69,10 @@ def main():
 
         elif opcion == "9":
             veterinaria.listar_cantidad_citas_por_dia()
+            input(celeste("\nPresione Enter para continuar..."))
+
+        elif opcion == "10":
+            veterinaria.gestionar_citas_cliente()
             input(celeste("\nPresione Enter para continuar..."))
 
         elif opcion == "0":
